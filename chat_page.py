@@ -153,7 +153,7 @@ for message in st.session_state.messages:
     ).write(message["content"])
 
 
-if prompt := st.chat_input("Say something"):
+if prompt := st.chat_input("Who is your favorite actor?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="🧑🏻"):
         st.text(prompt)
