@@ -12,7 +12,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from loguru import logger
 
-st.markdown("## Chat with Aniruddha")
+st.title("Chat with Aniruddha")
 st.sidebar.markdown("# Chat")
 st.sidebar.markdown("""
 Hi! I'm [Aniruddha](https://www.amkhrjee.in), or rather, his digital twin. He has plugged in his brain into me, giving me full access to his thoughts, memory and deepest desires and fears. I'm his digital doppelgänger.
@@ -108,7 +108,7 @@ if prompt := st.chat_input("Say something"):
         ai_response = st.write_stream(
             (
                 chunk.content  # type: ignore
-                for chunk, metadata in app.stream(
+                for chunk, _ in app.stream(
                     {"messages": input_messages},
                     config,  # type: ignore
                     stream_mode="messages",
