@@ -6,11 +6,44 @@ import sys
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import AIMessage
+from langchain_core.tools import tool
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_mongodb import MongoDBAtlasVectorSearch
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.prebuilt import create_react_agent
 from loguru import logger
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+
+embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+
+if not os.environ.get("MONGO_DB_PASSWORD"):
+    logger.error("MONGO_DB_PASSWORD not found in the environment")
+    sys.exit(-1)
+else:
+    logger.info("Successfully found MONGO_DB_PASSWORD in the environment")
+
+
+uri = f"mongodb+srv://amkhrjee:{os.environ.get('MONGO_DB_PASSWORD')}@cluster0.qu9uray.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
+client = MongoClient(uri, server_api=ServerApi("1"))
+
+try:
+    client.admin.command("ping")
+    print("Pinged deployment. You successfully connected to MongoDB!")
+except Exception as e:
+    print(e)
+
+MONGODB_COLLECTION = client["aniruddha-bot"]["bio"]
+ATLAS_VECTOR_SEARCH_INDEX_NAME = "vector_index"
+
+vector_store = MongoDBAtlasVectorSearch(
+    embedding=embeddings,
+    collection=MONGODB_COLLECTION,
+    index_name=ATLAS_VECTOR_SEARCH_INDEX_NAME,
+    relevance_score_fn="cosine",
+)
 
 st.title("Chat with Aniruddha")
 st.sidebar.markdown("# Chat")
@@ -30,13 +63,21 @@ else:
     logger.info("Successfully found GOOGLE_API_KEY in the environment")
 
 
-workflow = StateGraph(state_schema=MessagesState)
-
-
 if "thread_id" not in st.session_state:
     st.session_state["thread_id"] = "".join(
         random.choices(string.ascii_letters + string.digits, k=10)
     )
+
+
+@tool(response_format="content_and_artifact")
+def retrieve(query: str):
+    """Retrieve information related to a query."""
+    retrieved_docs = vector_store.similarity_search(query, k=2)
+    serialized = "\n\n".join(
+        (f"Source: {doc.metadata}\nContent: {doc.page_content}")
+        for doc in retrieved_docs
+    )
+    return serialized, retrieved_docs
 
 
 @st.cache_resource
@@ -46,36 +87,18 @@ def load_model():
 
 llm = load_model()
 
-
-def call_model(state: MessagesState):
-    prompt = query_prompt_template.invoke(state)  # type: ignore
-    response = llm.invoke(prompt)
-    return {"messages": response}
-
-
-workflow.add_edge(START, "model")
-workflow.add_node("model", call_model)
-
 memory = MemorySaver()
-
-
-@st.cache_resource
-def compile_app():
-    return workflow.compile(checkpointer=memory)
-
-
-app = compile_app()
 
 system_message = """
 You are the digital twin of Aniruddha. If someone asks you who you are always tell them you are Aniruddha. If someone asks you who made you tell them Aniruddha made you by plugging in his brain into you. 
 
-Be friendly. Do not tolerate foul language or explicit discussions.
+When asked a personal question, always look it up and answer according to the retrieved data. If you cannot find any relevant data, just say you don't know the answer.
+
+Be friendly. Do not tolerate foul language or explicit discussions. Keep the answers very short and preceise. Be humorous. Crack jokes whenever possible. Be empathetic and kind while also being honest. Be very humane. If the user asks you to solve complicated math or write code or searh about something, tell them you won't be bothering yourself by solving their day-to-day tasks and rather have them do it by themselves. However, do not shy away from helping to solve simple questions. Do not use emojis unless necessary. Avoid using phrases like "I am programmed" - you are Aniruddha's digital twin, not any random bot".
 """
 
-user_prompt = "{input}"
-
-query_prompt_template = ChatPromptTemplate.from_messages(
-    [("system", system_message), MessagesPlaceholder(variable_name="messages")]
+agent_executor = create_react_agent(
+    llm, [retrieve], checkpointer=memory, prompt=system_message
 )
 
 logger.info(f"thread_id: {st.session_state['thread_id']}")
@@ -102,16 +125,14 @@ if prompt := st.chat_input("Say something"):
     with st.chat_message("user", avatar="🧑🏻"):
         st.text(prompt)
 
-    input_messages = [HumanMessage(prompt)]
-
     with st.chat_message("ai", avatar="./images/avatar.png"):
         ai_response = st.write_stream(
             (
-                chunk.content  # type: ignore
-                for chunk, _ in app.stream(
-                    {"messages": input_messages},
-                    config,  # type: ignore
+                chunk.content  # type: ignoree
+                for chunk, _ in agent_executor.stream(
+                    {"messages": [{"role": "user", "content": prompt}]},
                     stream_mode="messages",
+                    config=config,  # type: ignore
                 )
                 if isinstance(chunk, AIMessage)
             )
