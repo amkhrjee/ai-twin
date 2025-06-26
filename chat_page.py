@@ -6,7 +6,7 @@ import sys
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
@@ -103,10 +103,17 @@ if prompt := st.chat_input("Say something"):
         st.text(prompt)
 
     input_messages = [HumanMessage(prompt)]
-    output = app.invoke({"messages": input_messages}, config)  # type: ignore
-    ai_response = output["messages"][-1].content
-    st.session_state.messages.append({"role": "ai", "content": ai_response})
 
-    if output:
-        with st.chat_message("ai", avatar="./images/avatar.png"):
-            st.text(ai_response)
+    with st.chat_message("ai", avatar="./images/avatar.png"):
+        ai_response = st.write_stream(
+            (
+                chunk.content  # type: ignore
+                for chunk, metadata in app.stream(
+                    {"messages": input_messages},
+                    config,  # type: ignore
+                    stream_mode="messages",
+                )
+                if isinstance(chunk, AIMessage)
+            )
+        )
+    st.session_state.messages.append({"role": "ai", "content": ai_response})
