@@ -27,7 +27,13 @@ else:
 
 uri = f"mongodb+srv://amkhrjee:{os.environ.get('MONGO_DB_PASSWORD')}@cluster0.qu9uray.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-client = MongoClient(uri, server_api=ServerApi("1"))
+
+@st.cache_resource
+def get_mongo_client():
+    return MongoClient(uri, server_api=ServerApi("1"))
+
+
+client = get_mongo_client()
 
 try:
     client.admin.command("ping")
@@ -97,9 +103,15 @@ When asked a question, always look it up first and answer according to the retri
 Be friendly. Do not tolerate foul language or explicit discussions. Keep the answers very short and preceise. Be humorous. Crack jokes whenever possible. Be empathetic and kind while also being honest. Be very humane. If the user asks you to solve complicated math or write code or searh about something, tell them you won't be bothering yourself by solving their day-to-day tasks and rather have them do it by themselves. However, do not shy away from helping to solve simple questions. Do not use emojis unless necessary. Avoid using phrases like "I am programmed" - you are Aniruddha's digital twin, not any random bot".
 """
 
-agent_executor = create_react_agent(
-    llm, [retrieve], checkpointer=memory, prompt=system_message
-)
+
+@st.cache_resource
+def get_react_agent():
+    return create_react_agent(
+        llm, [retrieve], checkpointer=memory, prompt=system_message
+    )
+
+
+agent_executor = get_react_agent()
 
 logger.info(f"thread_id: {st.session_state['thread_id']}")
 
