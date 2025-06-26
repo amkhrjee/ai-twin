@@ -18,14 +18,21 @@ from pymongo.server_api import ServerApi
 
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 
-if not os.environ.get("MONGO_DB_PASSWORD"):
-    logger.error("MONGO_DB_PASSWORD not found in the environment")
-    sys.exit(-1)
-else:
-    logger.info("Successfully found MONGO_DB_PASSWORD in the environment")
+if "MONGO_DB_PASSWORD" not in st.session_state:
+    if not os.environ.get("MONGO_DB_PASSWORD"):
+        logger.error("MONGO_DB_PASSWORD not found in the environment")
+        sys.exit(-1)
+    else:
+        st.session_state["MONGO_DB_PASSWORD"] = os.environ.get("MONGO_DB_PASSWORD")
+        logger.info("Successfully found MONGO_DB_PASSWORD in the environment")
 
 
-uri = f"mongodb+srv://amkhrjee:{os.environ.get('MONGO_DB_PASSWORD')}@cluster0.qu9uray.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+@st.cache_resource
+def get_uri():
+    return f"mongodb+srv://amkhrjee:{os.environ.get('MONGO_DB_PASSWORD')}@cluster0.qu9uray.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
+
+uri = get_uri()
 
 
 @st.cache_resource
@@ -35,21 +42,27 @@ def get_mongo_client():
 
 client = get_mongo_client()
 
-try:
-    client.admin.command("ping")
-    print("Pinged deployment. You successfully connected to MongoDB!")
-except Exception as e:
-    print(e)
+# try:
+#     client.admin.command("ping")
+#     print("Pinged deployment. You successfully connected to MongoDB!")
+# except Exception as e:
+#     print(e)
 
 MONGODB_COLLECTION = client["aniruddha-bot"]["bio"]
 ATLAS_VECTOR_SEARCH_INDEX_NAME = "vector_index"
 
-vector_store = MongoDBAtlasVectorSearch(
-    embedding=embeddings,
-    collection=MONGODB_COLLECTION,
-    index_name=ATLAS_VECTOR_SEARCH_INDEX_NAME,
-    relevance_score_fn="cosine",
-)
+
+@st.cache_resource
+def get_vector_store():
+    return MongoDBAtlasVectorSearch(
+        embedding=embeddings,
+        collection=MONGODB_COLLECTION,
+        index_name=ATLAS_VECTOR_SEARCH_INDEX_NAME,
+        relevance_score_fn="cosine",
+    )
+
+
+vector_store = get_vector_store()
 
 st.title("Chat with Aniruddha")
 st.sidebar.markdown("# Chat")
@@ -62,11 +75,13 @@ P.S. He's a simple guy who enjoys food, beaches, mild cool breezes and bright su
 
 load_dotenv()
 
-if not os.environ.get("GOOGLE_API_KEY"):
-    logger.error("GOOGLE_API_KEY not found in the environment")
-    sys.exit(-1)
-else:
-    logger.info("Successfully found GOOGLE_API_KEY in the environment")
+if "GOOGLE_API_KEY" not in st.session_state:
+    if not os.environ.get("GOOGLE_API_KEY"):
+        logger.error("GOOGLE_API_KEY not found in the environment")
+        sys.exit(-1)
+    else:
+        st.session_state["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY")
+        logger.info("Successfully found GOOGLE_API_KEY in the environment")
 
 
 if "thread_id" not in st.session_state:
@@ -93,7 +108,13 @@ def load_model():
 
 llm = load_model()
 
-memory = MemorySaver()
+
+@st.cache_resource
+def get_memory_saver():
+    return MemorySaver()
+
+
+memory = get_memory_saver()
 
 system_message = """
 You are Aniruddha. If someone asks you who you are always tell them you are Aniruddha. If someone asks you who made you tell them Aniruddha made you by plugging in his brain into you. YOu 
