@@ -157,17 +157,25 @@ if prompt := st.chat_input("Who is your favorite actor?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="🧑🏻"):
         st.text(prompt)
-
-    with st.chat_message("ai", avatar="./images/avatar.png"):
-        ai_response = st.write_stream(
-            (
-                chunk.content  # type: ignoree
-                for chunk, _ in agent_executor.stream(
-                    {"messages": [{"role": "user", "content": prompt}]},
-                    stream_mode="messages",
-                    config=config,  # type: ignore
+    try:
+        with st.chat_message("ai", avatar="./images/avatar.png"):
+            ai_response = st.write_stream(
+                (
+                    chunk.content  # type: ignoree
+                    for chunk, _ in agent_executor.stream(
+                        {"messages": [{"role": "user", "content": prompt}]},
+                        stream_mode="messages",
+                        config=config,  # type: ignore
+                    )
+                    if isinstance(chunk, AIMessage)
                 )
-                if isinstance(chunk, AIMessage)
             )
-        )
-    st.session_state.messages.append({"role": "ai", "content": ai_response})
+        st.session_state.messages.append({"role": "ai", "content": ai_response})
+    except Exception as e:
+        if type(e).__name__ == "ResourceExhausted":
+            st.info(
+                "I'm sleeping right now 😴\n\nCome back later!\n\nP.S. Technically speaking, I've exhausted my rate limits. I'm broke so consider [donating](https://www.paypal.com/paypalme/amkhrjee)."
+            )
+        else:
+            st.info("Something unexpected happened.")
+            logger.error(e)
