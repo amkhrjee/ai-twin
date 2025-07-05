@@ -1,6 +1,9 @@
 # RAG-powered AI Twin
 
 This is an experimental project built with [LangChain](https://www.langchain.com/). The AI here is a [ReAct agent](https://arxiv.org/abs/2210.03629) connected to a MongoDB vector database. It uses [Retrieval-Augmented Generation (RAG)](https://arxiv.org/abs/2005.11401) to fetch relevant data from the database and frame an answer according to the system prompt.
+
+
+<img src="./images/demo.gif" style="height: 50%;" alt="Demo GIF"/>
             
 The agent uses cosine similarity to find similar excerpts of text from the vector database. The database comprises of vector embeddings of relevant text describing my personality and likings. 
             
